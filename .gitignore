@@ -1,0 +1,19 @@
+# Binaries
+/bin/
+/dist/
+*.exe
+*.test
+
+# Go build cache / vendor (if not vendoring)
+vendor/
+
+# Env files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
