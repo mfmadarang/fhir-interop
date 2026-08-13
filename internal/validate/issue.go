@@ -5,9 +5,9 @@ import "fmt"
 // represents a single validation problem found on a resource
 type Issue struct {
 	ResourceType string
-	ResourceID string
-	Field string
-	Message string
+	ResourceID   string
+	Field        string
+	Message      string
 }
 
 func (i Issue) String() string {

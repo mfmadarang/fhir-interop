@@ -6,14 +6,13 @@ import (
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
 )
 
-//FHIR R4's AdministrativeGender value set
+// FHIR R4's AdministrativeGender value set
 var validGenders = map[string]bool{
-	"male":	true,
-	"female": true,
-	"other": true,
+	"male":    true,
+	"female":  true,
+	"other":   true,
 	"unknown": true,
 }
-
 
 func ValidatePatient(p fhir.Patient) []Issue {
 	var issues []Issue
