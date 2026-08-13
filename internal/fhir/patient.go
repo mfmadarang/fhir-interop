@@ -6,7 +6,7 @@ type Patient struct {
 	ID           string         `json:"id"`
 	Identifier   []Identifier   `json:"identifier,omitempty"`
 	Name         []HumanName    `json:"name,omitempty"`
-	Gender       string         `json:"gender`
+	Gender       string         `json:"gender,omitempty"`
 	BirthDate    string         `json:"birthDate,omitempty"`
 	Address      []Address      `json:"address,omitempty"`
 	Telecom      []ContactPoint `json:"telecom,omitempty"`
