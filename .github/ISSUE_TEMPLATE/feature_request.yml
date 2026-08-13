@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest something new or a change to existing behavior
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What do you want to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Why
+      description: What's the use case this unblocks or improves
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional
