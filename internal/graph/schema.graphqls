@@ -1,0 +1,32 @@
+type Patient {
+  id: ID!
+  familyName: String
+  givenName: String
+  gender: String
+  birthDate: String
+}
+
+type Encounter {
+  id: ID!
+  patientId: String
+  status: String
+  periodStart: String
+  periodEnd: String
+}
+
+type Observation {
+  id: ID!
+  patientId: String
+  encounterId: String
+  status: String
+  codeSystem: String
+  codeValue: String
+  effectiveDateTime: String
+}
+
+type Query {
+  patient(id: ID!): Patient
+  patients(limit: Int = 20, offset: Int = 0): [Patient!]!
+  encountersByPatient(patientId: ID!): [Encounter!]!
+  observationsByPatient(patientId: ID!): [Observation!]!
+}

@@ -1,0 +1,27 @@
+schema:
+  - internal/graph/schema.graphqls
+
+exec:
+  filename: internal/graph/generated.go
+  package: graph
+
+resolver:
+  layout: single-file
+  filename: internal/graph/resolver.go
+  package: graph
+
+models:
+  Patient:
+    model: github.com/mfmadarang/fhir-interop/internal/store.PatientRecord
+  Encounter:
+    model: github.com/mfmadarang/fhir-interop/internal/store.EncounterRecord
+    fields:
+      patientId:
+        fieldName: PatientID
+  Observation:
+    model: github.com/mfmadarang/fhir-interop/internal/store.ObservationRecord
+    fields:
+      patientId:
+        fieldName: PatientID
+      encounterId:
+        fieldName: EncounterID
