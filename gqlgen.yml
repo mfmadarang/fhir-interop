@@ -25,3 +25,7 @@ models:
         fieldName: PatientID
       encounterId:
         fieldName: EncounterID
+
+model:
+  filename: internal/graph/models_gen.go
+  package: graph

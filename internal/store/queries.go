@@ -22,6 +22,23 @@ func ListPatients(db *gorm.DB, limit, offset int) ([]*PatientRecord, error) {
 	return recs, nil
 }
 
+// lists patients ordered by ID, cursor-paginated. empty afterID starts from the beginning
+func ListPatientsCursor(db *gorm.DB, first int, afterID string) ([]*PatientRecord, bool, error) {
+	q := db.Order("id").Limit(first + 1)
+	if afterID != "" {
+		q = q.Where("id > ?", afterID)
+	}
+	var recs []*PatientRecord
+	if err := q.Find(&recs).Error; err != nil {
+		return nil, false, err
+	}
+	hasNextPage := len(recs) > first
+	if hasNextPage {
+		recs = recs[:first]
+	}
+	return recs, hasNextPage, nil
+}
+
 func ListEncountersByPatient(db *gorm.DB, patientID string) ([]*EncounterRecord, error) {
 	var recs []*EncounterRecord
 	if err := db.Where("patient_id = ?", patientID).Order("period_start desc").Find(&recs).Error; err != nil {

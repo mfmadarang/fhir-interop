@@ -45,6 +45,7 @@ format the data came from.
 - GraphQL API (built with [gqlgen](https://gqlgen.com/)) for querying
   stored records
 - Static API key authentication on the GraphQL query endpoint (`internal/auth`)
+- Cursor-based pagination on `patients` (Relay-style `Connection`/`edges`/`pageInfo`), so listing works safely as the dataset grows
 - `cmd/ingest` for bulk-loading a folder of FHIR bundles
 - CI pipeline (build, vet, test, gofmt check) on every push and PR
 - Dockerfile + GitHub Actions workflow publishing images to GHCR on
@@ -110,16 +111,44 @@ Opens a GraphQL playground at `http://localhost:8080/`. The playground UI itself
 ```bash
 curl -H "Authorization: Bearer your-secret-key" \
   -H "Content-Type: application/json" \
-  -d '{"query":"{ patients(limit: 5) { id familyName } }"}' \
+  -d '{"query":"{ patients(first: 5) { edges { node { id familyName } cursor } pageInfo { hasNextPage endCursor } } }"}' \
   http://localhost:8080/query
 ```
 
 ```graphql
 query {
-  patients(limit: 5) {
-    id
-    familyName
-    gender
+  patients(first: 5) {
+    edges {
+      node {
+        id
+        familyName
+        gender
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+```
+
+To fetch the next page, pass the previous response's `endCursor` as `after`:
+
+```graphql
+query {
+  patients(first: 5, after: "<endCursor from previous page>") {
+    edges {
+      node {
+        id
+        familyName
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
   }
 }
 ```
