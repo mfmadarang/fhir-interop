@@ -38,7 +38,16 @@ func main() {
 
 	http.Handle("/", playground.Handler("fhir-interop GraphQL playground", "/query"))
 	http.Handle("/query", auth.APIKeyMiddleware(apiKey)(srv))
+	http.HandleFunc("/app", func(w http.ResponseWriter, r *http.Request) {
+		data, err := os.ReadFile("cmd/server/web/index.html")
+		if err != nil {
+			http.Error(w, "app not found: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(data)
+	})
 
-	log.Printf("listening on :%s (playground at http://localhost:%s/)", port, port)
+	log.Printf("listening on :%s (playground at http://localhost:%s/, browser at http://localhost:%s/app)", port, port, port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

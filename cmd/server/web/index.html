@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>fhir-interop</title>
+<style>
+  :root { --border: #e2e2e2; --text: #1a1a1a; --muted: #767676; --accent: #2563eb; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, sans-serif; margin: 0; color: var(--text); background: #fff; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; }
+  header button { padding: 6px 12px; border: 1px solid var(--text); background: var(--text); color: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  header button:disabled { opacity: 0.4; cursor: default; }
+  #status { font-size: 13px; color: #b91c1c; margin-left: auto; }
+  main { display: flex; gap: 24px; padding: 24px; }
+  #patients-panel { flex: 1; min-width: 0; }
+  #detail-panel { width: 380px; flex-shrink: 0; border-left: 1px solid var(--border); padding-left: 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 500; }
+  td { padding: 8px; border-bottom: 1px solid var(--border); }
+  tr.patient-row { cursor: pointer; }
+  tr.patient-row:hover { background: #f7f7f7; }
+  tr.selected { background: #eff6ff; }
+  #search { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 12px; font-size: 13px; }
+  #load-more { margin-top: 12px; padding: 8px 14px; border: 1px solid var(--border); background: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  #load-more:disabled { opacity: 0.4; cursor: default; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 20px 0 8px; }
+  .record { font-size: 13px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+  .empty { color: var(--muted); font-size: 13px; padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>fhir-interop</h1>
+  <input id="api-key" type="password" placeholder="API key">
+  <button id="save-key">Connect</button>
+  <span id="status"></span>
+</header>
+
+<main>
+  <div id="patients-panel">
+    <input id="search" type="text" placeholder="Filter by name or ID...">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Family name</th><th>Given name</th><th>Gender</th><th>Birth date</th></tr>
+      </thead>
+      <tbody id="patients-body"></tbody>
+    </table>
+    <button id="load-more">Load more</button>
+  </div>
+
+  <div id="detail-panel">
+    <div class="empty">Select a patient to see encounters and observations.</div>
+  </div>
+</main>
+
+<script>
+let apiKey = localStorage.getItem('apiKey') || '';
+let cursor = null;
+let hasNextPage = true;
+let loading = false;
+let patients = [];
+let selectedID = null;
+
+const apiKeyInput = document.getElementById('api-key');
+const saveKeyBtn = document.getElementById('save-key');
+const statusEl = document.getElementById('status');
+const searchInput = document.getElementById('search');
+const patientsBody = document.getElementById('patients-body');
+const loadMoreBtn = document.getElementById('load-more');
+const detailPanel = document.getElementById('detail-panel');
+
+apiKeyInput.value = apiKey;
+
+async function gql(query, variables) {
+  const res = await fetch('/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (res.status === 401) throw new Error('Unauthorized, check your API key');
+  const json = await res.json();
+  if (json.errors) throw new Error(json.errors.map(e => e.message).join(', '));
+  return json.data;
+}
+
+const PATIENTS_QUERY = `
+  query($first: Int, $after: String) {
+    patients(first: $first, after: $after) {
+      edges { node { id familyName givenName gender birthDate } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const DETAIL_QUERY = `
+  query($id: ID!) {
+    encountersByPatient(patientId: $id) { id status periodStart periodEnd }
+    observationsByPatient(patientId: $id) { id codeSystem codeValue status effectiveDateTime }
+  }
+`;
+
+async function loadMore() {
+  if (loading || !hasNextPage || !apiKey) return;
+  loading = true;
+  loadMoreBtn.disabled = true;
+  statusEl.textContent = '';
+  try {
+    const data = await gql(PATIENTS_QUERY, { first: 20, after: cursor });
+    const conn = data.patients;
+    patients.push(...conn.edges.map(e => e.node));
+    cursor = conn.pageInfo.endCursor;
+    hasNextPage = conn.pageInfo.hasNextPage;
+    renderTable();
+  } catch (err) {
+    statusEl.textContent = err.message;
+  } finally {
+    loading = false;
+    loadMoreBtn.disabled = !hasNextPage;
+  }
+}
+
+function filtered() {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) return patients;
+  return patients.filter(p =>
+    (p.familyName || '').toLowerCase().includes(q) ||
+    (p.givenName || '').toLowerCase().includes(q) ||
+    p.id.toLowerCase().includes(q)
+  );
+}
+
+function renderTable() {
+  patientsBody.innerHTML = '';
+  for (const p of filtered()) {
+    const tr = document.createElement('tr');
+    tr.className = 'patient-row' + (p.id === selectedID ? ' selected' : '');
+    tr.innerHTML = `<td>${p.id}</td><td>${p.familyName || ''}</td><td>${p.givenName || ''}</td><td>${p.gender || ''}</td><td>${p.birthDate || ''}</td>`;
+    tr.onclick = () => selectPatient(p.id);
+    patientsBody.appendChild(tr);
+  }
+  loadMoreBtn.disabled = !hasNextPage;
+  loadMoreBtn.style.display = hasNextPage ? 'block' : 'none';
+}
+
+async function selectPatient(id) {
+  selectedID = id;
+  renderTable();
+  detailPanel.innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const data = await gql(DETAIL_QUERY, { id });
+    renderDetail(id, data.encountersByPatient, data.observationsByPatient);
+  } catch (err) {
+    detailPanel.innerHTML = `<div class="empty">${err.message}</div>`;
+  }
+}
+
+function renderDetail(id, encounters, observations) {
+  let html = `<h2>${id}</h2>`;
+  html += '<h3>Encounters</h3>';
+  html += encounters.length
+    ? encounters.map(e => `<div class="record">${e.status || ''} &middot; ${e.periodStart || '?'} &rarr; ${e.periodEnd || 'ongoing'}</div>`).join('')
+    : '<div class="empty">None</div>';
+  html += '<h3>Observations</h3>';
+  html += observations.length
+    ? observations.map(o => `<div class="record">${o.codeValue || o.codeSystem || ''} &middot; ${o.status || ''} &middot; ${o.effectiveDateTime || ''}</div>`).join('')
+    : '<div class="empty">None</div>';
+  detailPanel.innerHTML = html;
+}
+
+saveKeyBtn.onclick = () => {
+  apiKey = apiKeyInput.value.trim();
+  localStorage.setItem('apiKey', apiKey);
+  patients = []; cursor = null; hasNextPage = true; selectedID = null;
+  detailPanel.innerHTML = '<div class="empty">Select a patient to see encounters and observations.</div>';
+  loadMore();
+};
+
+searchInput.oninput = renderTable;
+loadMoreBtn.onclick = loadMore;
+
+if (apiKey) loadMore();
+</script>
+
+</body>
+</html>
