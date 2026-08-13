@@ -1,0 +1,8 @@
+MSH|^~\&|LAB_SYS|UPM_HOSPITAL|INGEST|FHIR_INTEROP|20260810094500||ORU^R01|MSG3000001B|P|2.5
+PID|1||3000001^^^MRN||Dela Cruz^Miguel^R||19920407|M|||45 Rizal Ave^^Quezon City^NCR^1100^PH||555-0142|||S||3000001
+PV1|1|I|WARD2^205^2||||5501^Bautista^Liza^^^Dr|||MED|||||||||V1001
+OBR|1|ORD3000001|LAB3000001|VITALS^Vital Signs Panel^L|||20260810094500
+OBX|1|NM|8867-4^Heart Rate^LN||78|/min|||||F
+OBX|2|NM|8480-6^Systolic BP^LN||118|mmHg|||||F
+OBX|3|NM|8310-5^Body Temperature^LN||36.8|Cel|||||F
+OBX|4|ST|10154-3^Free Text Result^LN||Patient stable post-admission|||||F

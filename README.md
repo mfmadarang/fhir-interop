@@ -19,21 +19,26 @@ patient data.
 
 ```mermaid
 flowchart LR
-    A[FHIR JSON Bundle] --> B["Parser<br/>(internal/fhir)"]
-    B --> C["Validator<br/> (internal/validate)"]
-    C --> D[("Postgres<br/> via GORM")]
+    A[FHIR JSON Bundle] --> P["fhir.ParseBundle"]
+    G[HL7v2 Message] --> H["convert package<br/>(ADT, ORU)"]
+    P --> C[ParsedBundle]
+    H --> C
+    C --> V["Validator<br/>(internal/validate)"]
+    V --> D[("Postgres<br/> via GORM")]
     D --> E["GraphQL API<br/> (gqlgen)"]
     E --> F[Client / Playground]
 ```
 
-A FHIR Bundle (one patient's full synthetic record) gets parsed into
-typed Go structs, checked against FHIR's actual value sets and
-required fields, saved to Postgres, and made queryable through
-GraphQL.
+A FHIR Bundle or an HL7v2 message both end up as the same `ParsedBundle`
+type, so validation, persistence, and the GraphQL API don't care which
+format the data came from.
 
 ## Features
 
 - FHIR R4 Bundle parsing for `Patient`, `Encounter`, and `Observation`
+- HL7v2 → FHIR conversion (`internal/convert`): ADT^A01 (admit),
+  ADT^A03 (discharge), and ORU^R01 (results) messages, mapped onto
+  the same `Patient`/`Encounter`/`Observation` structs as FHIR JSON
 - Structural and value validation (required fields, FHIR value sets,
   date formats)
 - Postgres persistence via GORM, with upsert semantics
@@ -79,6 +84,12 @@ go run ./cmd/ingest
 Loads every `.json` bundle in `testdata/` by default, or pass a
 different directory: `go run ./cmd/ingest path/to/bundles`.
 
+To load HL7v2 messages instead of FHIR JSON:
+
+```bash
+go run ./cmd/ingest --format hl7v2 testdata/hl7v2
+```
+
 ### 4. Run the server
 
 ```bash
@@ -117,7 +128,9 @@ go test ./...
 Uses [Synthea](https://github.com/synthetichealth/synthea)-generated
 synthetic FHIR bundles for development and testing, plus a small
 hand-crafted fixture (`testdata/sample_minimal.json`) for fast unit
-tests. No real patient data is used anywhere in this project.
+tests. Synthea doesn't export HL7v2, so `testdata/hl7v2/` is hand-
+written instead, following the same message structure a real ADT/ORU
+feed would use. No real patient data is used anywhere in this project.
 
 ## Notes
 
@@ -130,3 +143,4 @@ before using it as more than a reference:
 - The GraphQL API has no authentication. Don't expose it publicly or
   connect it to anything sensitive.
 - Not audited, not intended for clinical use.
+- HL7v2 support covers ADT^A01, ADT^A03, and ORU^R01 only.
