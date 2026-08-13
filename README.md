@@ -44,6 +44,7 @@ format the data came from.
 - Postgres persistence via GORM, with upsert semantics
 - GraphQL API (built with [gqlgen](https://gqlgen.com/)) for querying
   stored records
+- Static API key authentication on the GraphQL query endpoint (`internal/auth`)
 - `cmd/ingest` for bulk-loading a folder of FHIR bundles
 - CI pipeline (build, vet, test, gofmt check) on every push and PR
 - Dockerfile + GitHub Actions workflow publishing images to GHCR on
@@ -75,7 +76,15 @@ docker run --name fhir-interop-postgres \
 export DATABASE_URL="postgres://postgres:postgres@localhost:5433/fhir_interop?sslmode=disable"
 ```
 
-### 3. Load sample data
+### 3, Set the API key
+
+```bash
+export API_KEY="your-secret-key"
+```
+
+The server won't start without this set.
+
+### 4. Load sample data
 
 ```bash
 go run ./cmd/ingest
@@ -90,13 +99,20 @@ To load HL7v2 messages instead of FHIR JSON:
 go run ./cmd/ingest --format hl7v2 testdata/hl7v2
 ```
 
-### 4. Run the server
+### 5. Run the server
 
 ```bash
 go run ./cmd/server
 ```
 
-Opens a GraphQL playground at `http://localhost:8080/`. Try:
+Opens a GraphQL playground at `http://localhost:8080/`. The playground UI itself is open, but queries against `/query` require the key, add an `Authorization: Bearer <your key>` header in the playground's **Headers** panel, or with `curl`:
+
+```bash
+curl -H "Authorization: Bearer your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"{ patients(limit: 5) { id familyName } }"}' \
+  http://localhost:8080/query
+```
 
 ```graphql
 query {
@@ -140,7 +156,6 @@ before using it as more than a reference:
 
 - Only synthetic (Synthea-generated) data has ever touched this
   project. Don't point it at real patient data.
-- The GraphQL API has no authentication. Don't expose it publicly or
-  connect it to anything sensitive.
+- The GraphQL endpoint (`/query`) is gated behind a static API key (`API_KEY` env var). The playground itself is not gated, only query execution.
 - Not audited, not intended for clinical use.
 - HL7v2 support covers ADT^A01, ADT^A03, and ORU^R01 only.

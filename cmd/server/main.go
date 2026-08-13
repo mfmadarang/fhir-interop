@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 
+	"github.com/mfmadarang/fhir-interop/internal/auth"
 	"github.com/mfmadarang/fhir-interop/internal/graph"
 	"github.com/mfmadarang/fhir-interop/internal/store"
 )
@@ -22,6 +23,11 @@ func main() {
 		log.Fatalf("running migrations: %v", err)
 	}
 
+	apiKey := os.Getenv("API_KEY")
+	if apiKey == "" {
+		log.Fatal("API_KEY environment variable is required")
+	}
+
 	resolver := &graph.Resolver{DB: db}
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 
@@ -31,7 +37,7 @@ func main() {
 	}
 
 	http.Handle("/", playground.Handler("fhir-interop GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	http.Handle("/query", auth.APIKeyMiddleware(apiKey)(srv))
 
 	log.Printf("listening on :%s (playground at http://localhost:%s/)", port, port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
