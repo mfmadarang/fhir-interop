@@ -1,0 +1,57 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:patient-1",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-1",
+        "identifier": [{ "system": "https://example.org/mrn", "value": "MRN001" }],
+        "name": [{ "use": "official", "family": "Dela Cruz", "given": ["Juan"] }],
+        "gender": "male",
+        "birthDate": "1990-05-14",
+        "address": [
+          { "line": ["123 Rizal St"], "city": "Manila", "state": "NCR", "postalCode": "1000", "country": "PH" }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:encounter-1",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "encounter-1",
+        "status": "finished",
+        "class": { "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory" },
+        "subject": { "reference": "urn:uuid:patient-1" },
+        "period": { "start": "2026-01-10T08:00:00Z", "end": "2026-01-10T08:30:00Z" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:observation-1",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "observation-1",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "vital-signs" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "8867-4", "display": "Heart rate" }]
+        },
+        "subject": { "reference": "urn:uuid:patient-1" },
+        "encounter": { "reference": "urn:uuid:encounter-1" },
+        "effectiveDateTime": "2026-01-10T08:05:00Z",
+        "valueQuantity": { "value": 72, "unit": "beats/minute", "system": "http://unitsofmeasure.org", "code": "/min" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-1",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-1",
+        "subject": { "reference": "urn:uuid:patient-1" }
+      }
+    }
+  ]
+}
