@@ -14,6 +14,11 @@ import (
 )
 
 func main() {
+	apiKey := os.Getenv("API_KEY")
+	if apiKey == "" {
+		log.Fatal("API_KEY environment variable is required")
+	}
+
 	db, err := store.Connect()
 	if err != nil {
 		log.Fatalf("connecting to database: %v", err)
@@ -21,11 +26,6 @@ func main() {
 
 	if err := store.Migrate(db); err != nil {
 		log.Fatalf("running migrations: %v", err)
-	}
-
-	apiKey := os.Getenv("API_KEY")
-	if apiKey == "" {
-		log.Fatal("API_KEY environment variable is required")
 	}
 
 	resolver := &graph.Resolver{DB: db}
