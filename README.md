@@ -9,7 +9,7 @@ a GraphQL API.
 
 ## About
 
-I built this after wrapping up my internship, where I gothands-on experience with Go, GraphQL (gqlgen), and GORM. Wanted to
+I built this after wrapping up my internship, where I got hands-on experience with Go, GraphQL (gqlgen), and GORM. Wanted to
 keep using that stack on something of my own instead of letting it go
 stale, so I picked a domain that's actually close to my program, Health Informatics,
 and built a small pipeline for parsing, validating, and querying FHIR
@@ -20,9 +20,9 @@ patient data.
 ```mermaid
 flowchart LR
     A[FHIR JSON Bundle] --> B["Parser<br/>(internal/fhir)"]
-    B --> C["Validator<br/>(internal/validate)"]
-    C --> D[("Postgres<br/>via GORM")]
-    D --> E["GraphQL API<br/>(gqlgen)"]
+    B --> C["Validator<br/> (internal/validate)"]
+    C --> D[("Postgres<br/> via GORM")]
+    D --> E["GraphQL API<br/> (gqlgen)"]
     E --> F[Client / Playground]
 ```
 
