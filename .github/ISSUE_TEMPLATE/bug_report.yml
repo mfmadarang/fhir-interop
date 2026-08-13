@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in fhir-interop is broken or behaving unexpectedly
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: In order, exactly what you did
+      placeholder: |
+        1. Ran `go run ./cmd/ingest --format hl7v2 testdata/hl7v2`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15 / Windows 11 / Ubuntu 24.04
+    validations:
+      required: true
+
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      placeholder: go version
+    validations:
+      required: true
+
+  - type: dropdown
+    id: postgres
+    attributes:
+      label: Postgres
+      options:
+        - Docker (as in the setup guide)
+        - Native install
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error output
+      description: Paste the full output, not a paraphrase
+      render: shell
+
+  - type: input
+    id: resource-or-message
+    attributes:
+      label: FHIR resource type or HL7v2 message type involved (if data-related)
+      placeholder: "Observation / ORU^R01"
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmation
+      options:
+        - label: The data involved is synthetic (Synthea-generated or hand-written test data), not real patient data
+          required: true
