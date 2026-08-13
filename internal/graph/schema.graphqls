@@ -26,7 +26,22 @@ type Observation {
 
 type Query {
   patient(id: ID!): Patient
-  patients(limit: Int = 20, offset: Int = 0): [Patient!]!
+  patients(first: Int = 20, after: String): PatientConnection!
   encountersByPatient(patientId: ID!): [Encounter!]!
   observationsByPatient(patientId: ID!): [Observation!]!
+}
+
+type PatientEdge {
+  node: Patient!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
+}
+
+type PatientConnection {
+  edges: [PatientEdge!]!
+  pageInfo: PageInfo!
 }

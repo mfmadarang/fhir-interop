@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mfmadarang/fhir-interop/internal/store"
 	"gorm.io/gorm"
@@ -15,16 +16,44 @@ func (r *queryResolver) Patient(ctx context.Context, id string) (*store.PatientR
 	return store.GetPatient(r.DB, id)
 }
 
-func (r *queryResolver) Patients(ctx context.Context, limit *int, offset *int) ([]*store.PatientRecord, error) {
-	l := 20
-	if limit != nil {
-		l = *limit
+func (r *queryResolver) Patients(ctx context.Context, first *int, after *string) (*PatientConnection, error) {
+	f := 20
+	if first != nil {
+		f = *first
 	}
-	o := 0
-	if offset != nil {
-		o = *offset
+
+	afterID := ""
+	if after != nil {
+		id, err := decodeCursor(*after)
+		if err != nil {
+			return nil, fmt.Errorf("invalid cursor: %w", err)
+		}
+		afterID = id
 	}
-	return store.ListPatients(r.DB, l, o)
+
+	recs, hasNextPage, err := store.ListPatientsCursor(r.DB, f, afterID)
+	if err != nil {
+		return nil, err
+	}
+
+	edges := make([]*PatientEdge, len(recs))
+	for i, rec := range recs {
+		edges[i] = &PatientEdge{Node: rec, Cursor: encodeCursor(rec.ID)}
+	}
+
+	var endCursor *string
+	if len(edges) > 0 {
+		c := edges[len(edges)-1].Cursor
+		endCursor = &c
+	}
+
+	return &PatientConnection{
+		Edges: edges,
+		PageInfo: &PageInfo{
+			HasNextPage: hasNextPage,
+			EndCursor:   endCursor,
+		},
+	}, nil
 }
 
 func (r *queryResolver) EncountersByPatient(ctx context.Context, patientID string) ([]*store.EncounterRecord, error) {

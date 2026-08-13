@@ -64,6 +64,11 @@ type ComplexityRoot struct {
 		Status            func(childComplexity int) int
 	}
 
+	PageInfo struct {
+		EndCursor   func(childComplexity int) int
+		HasNextPage func(childComplexity int) int
+	}
+
 	Patient struct {
 		BirthDate  func(childComplexity int) int
 		FamilyName func(childComplexity int) int
@@ -72,17 +77,27 @@ type ComplexityRoot struct {
 		ID         func(childComplexity int) int
 	}
 
+	PatientConnection struct {
+		Edges    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	PatientEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
 	Query struct {
 		EncountersByPatient   func(childComplexity int, patientID string) int
 		ObservationsByPatient func(childComplexity int, patientID string) int
 		Patient               func(childComplexity int, id string) int
-		Patients              func(childComplexity int, limit *int, offset *int) int
+		Patients              func(childComplexity int, first *int, after *string) int
 	}
 }
 
 type QueryResolver interface {
 	Patient(ctx context.Context, id string) (*store.PatientRecord, error)
-	Patients(ctx context.Context, limit *int, offset *int) ([]*store.PatientRecord, error)
+	Patients(ctx context.Context, first *int, after *string) (*PatientConnection, error)
 	EncountersByPatient(ctx context.Context, patientID string) ([]*store.EncounterRecord, error)
 	ObservationsByPatient(ctx context.Context, patientID string) ([]*store.ObservationRecord, error)
 }
@@ -190,6 +205,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Observation.Status(childComplexity), true
 
+	case "PageInfo.endCursor":
+		if e.complexity.PageInfo.EndCursor == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.EndCursor(childComplexity), true
+
+	case "PageInfo.hasNextPage":
+		if e.complexity.PageInfo.HasNextPage == nil {
+			break
+		}
+
+		return e.complexity.PageInfo.HasNextPage(childComplexity), true
+
 	case "Patient.birthDate":
 		if e.complexity.Patient.BirthDate == nil {
 			break
@@ -224,6 +253,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Patient.ID(childComplexity), true
+
+	case "PatientConnection.edges":
+		if e.complexity.PatientConnection.Edges == nil {
+			break
+		}
+
+		return e.complexity.PatientConnection.Edges(childComplexity), true
+
+	case "PatientConnection.pageInfo":
+		if e.complexity.PatientConnection.PageInfo == nil {
+			break
+		}
+
+		return e.complexity.PatientConnection.PageInfo(childComplexity), true
+
+	case "PatientEdge.cursor":
+		if e.complexity.PatientEdge.Cursor == nil {
+			break
+		}
+
+		return e.complexity.PatientEdge.Cursor(childComplexity), true
+
+	case "PatientEdge.node":
+		if e.complexity.PatientEdge.Node == nil {
+			break
+		}
+
+		return e.complexity.PatientEdge.Node(childComplexity), true
 
 	case "Query.encountersByPatient":
 		if e.complexity.Query.EncountersByPatient == nil {
@@ -271,7 +328,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Patients(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.complexity.Query.Patients(childComplexity, args["first"].(*int), args["after"].(*string)), true
 
 	}
 	return 0, false
@@ -445,23 +502,23 @@ func (ec *executionContext) field_Query_patients_args(ctx context.Context, rawAr
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *int
-	if tmp, ok := rawArgs["limit"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+	if tmp, ok := rawArgs["first"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
 		arg0, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["limit"] = arg0
-	var arg1 *int
-	if tmp, ok := rawArgs["offset"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
-		arg1, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+	args["first"] = arg0
+	var arg1 *string
+	if tmp, ok := rawArgs["after"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("after"))
+		arg1, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -1001,6 +1058,91 @@ func (ec *executionContext) fieldContext_Observation_effectiveDateTime(_ context
 	return fc, nil
 }
 
+func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *PageInfo) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HasNextPage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PageInfo_hasNextPage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PageInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PageInfo_endCursor(ctx context.Context, field graphql.CollectedField, obj *PageInfo) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PageInfo_endCursor(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EndCursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PageInfo_endCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PageInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Patient_id(ctx context.Context, field graphql.CollectedField, obj *store.PatientRecord) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Patient_id(ctx, field)
 	if err != nil {
@@ -1209,6 +1351,206 @@ func (ec *executionContext) fieldContext_Patient_birthDate(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _PatientConnection_edges(ctx context.Context, field graphql.CollectedField, obj *PatientConnection) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PatientConnection_edges(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Edges, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*PatientEdge)
+	fc.Result = res
+	return ec.marshalNPatientEdge2ᚕᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientEdgeᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PatientConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PatientConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "node":
+				return ec.fieldContext_PatientEdge_node(ctx, field)
+			case "cursor":
+				return ec.fieldContext_PatientEdge_cursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PatientEdge", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PatientConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *PatientConnection) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PatientConnection_pageInfo(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PageInfo, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*PageInfo)
+	fc.Result = res
+	return ec.marshalNPageInfo2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPageInfo(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PatientConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PatientConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PatientEdge_node(ctx context.Context, field graphql.CollectedField, obj *PatientEdge) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PatientEdge_node(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Node, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*store.PatientRecord)
+	fc.Result = res
+	return ec.marshalNPatient2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecord(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PatientEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PatientEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Patient_id(ctx, field)
+			case "familyName":
+				return ec.fieldContext_Patient_familyName(ctx, field)
+			case "givenName":
+				return ec.fieldContext_Patient_givenName(ctx, field)
+			case "gender":
+				return ec.fieldContext_Patient_gender(ctx, field)
+			case "birthDate":
+				return ec.fieldContext_Patient_birthDate(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Patient", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _PatientEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *PatientEdge) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_PatientEdge_cursor(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Cursor, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_PatientEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "PatientEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_patient(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_patient(ctx, field)
 	if err != nil {
@@ -1287,7 +1629,7 @@ func (ec *executionContext) _Query_patients(ctx context.Context, field graphql.C
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Patients(rctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		return ec.resolvers.Query().Patients(rctx, fc.Args["first"].(*int), fc.Args["after"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1299,9 +1641,9 @@ func (ec *executionContext) _Query_patients(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*store.PatientRecord)
+	res := resTmp.(*PatientConnection)
 	fc.Result = res
-	return ec.marshalNPatient2ᚕᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecordᚄ(ctx, field.Selections, res)
+	return ec.marshalNPatientConnection2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientConnection(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_patients(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1312,18 +1654,12 @@ func (ec *executionContext) fieldContext_Query_patients(ctx context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "id":
-				return ec.fieldContext_Patient_id(ctx, field)
-			case "familyName":
-				return ec.fieldContext_Patient_familyName(ctx, field)
-			case "givenName":
-				return ec.fieldContext_Patient_givenName(ctx, field)
-			case "gender":
-				return ec.fieldContext_Patient_gender(ctx, field)
-			case "birthDate":
-				return ec.fieldContext_Patient_birthDate(ctx, field)
+			case "edges":
+				return ec.fieldContext_PatientConnection_edges(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_PatientConnection_pageInfo(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type Patient", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type PatientConnection", field.Name)
 		},
 	}
 	defer func() {
@@ -3486,6 +3822,47 @@ func (ec *executionContext) _Observation(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var pageInfoImplementors = []string{"PageInfo"}
+
+func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet, obj *PageInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pageInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PageInfo")
+		case "hasNextPage":
+			out.Values[i] = ec._PageInfo_hasNextPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endCursor":
+			out.Values[i] = ec._PageInfo_endCursor(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var patientImplementors = []string{"Patient"}
 
 func (ec *executionContext) _Patient(ctx context.Context, sel ast.SelectionSet, obj *store.PatientRecord) graphql.Marshaler {
@@ -3510,6 +3887,94 @@ func (ec *executionContext) _Patient(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = ec._Patient_gender(ctx, field, obj)
 		case "birthDate":
 			out.Values[i] = ec._Patient_birthDate(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var patientConnectionImplementors = []string{"PatientConnection"}
+
+func (ec *executionContext) _PatientConnection(ctx context.Context, sel ast.SelectionSet, obj *PatientConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, patientConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PatientConnection")
+		case "edges":
+			out.Values[i] = ec._PatientConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._PatientConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var patientEdgeImplementors = []string{"PatientEdge"}
+
+func (ec *executionContext) _PatientEdge(ctx context.Context, sel ast.SelectionSet, obj *PatientEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, patientEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PatientEdge")
+		case "node":
+			out.Values[i] = ec._PatientEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cursor":
+			out.Values[i] = ec._PatientEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4132,7 +4597,41 @@ func (ec *executionContext) marshalNObservation2ᚖgithubᚗcomᚋmfmadarangᚋf
 	return ec._Observation(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPatient2ᚕᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecordᚄ(ctx context.Context, sel ast.SelectionSet, v []*store.PatientRecord) graphql.Marshaler {
+func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *PageInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PageInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPatient2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecord(ctx context.Context, sel ast.SelectionSet, v *store.PatientRecord) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Patient(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPatientConnection2githubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v PatientConnection) graphql.Marshaler {
+	return ec._PatientConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNPatientConnection2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientConnection(ctx context.Context, sel ast.SelectionSet, v *PatientConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._PatientConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNPatientEdge2ᚕᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*PatientEdge) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -4156,7 +4655,7 @@ func (ec *executionContext) marshalNPatient2ᚕᚖgithubᚗcomᚋmfmadarangᚋfh
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNPatient2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecord(ctx, sel, v[i])
+			ret[i] = ec.marshalNPatientEdge2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientEdge(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -4176,14 +4675,14 @@ func (ec *executionContext) marshalNPatient2ᚕᚖgithubᚗcomᚋmfmadarangᚋfh
 	return ret
 }
 
-func (ec *executionContext) marshalNPatient2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋstoreᚐPatientRecord(ctx context.Context, sel ast.SelectionSet, v *store.PatientRecord) graphql.Marshaler {
+func (ec *executionContext) marshalNPatientEdge2ᚖgithubᚗcomᚋmfmadarangᚋfhirᚑinteropᚋinternalᚋgraphᚐPatientEdge(ctx context.Context, sel ast.SelectionSet, v *PatientEdge) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
 		}
 		return graphql.Null
 	}
-	return ec._Patient(ctx, sel, v)
+	return ec._PatientEdge(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
