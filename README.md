@@ -41,6 +41,7 @@ format the data came from.
   the same `Patient`/`Encounter`/`Observation` structs as FHIR JSON
 - Structural and value validation (required fields, FHIR value sets,
   date formats)
+- Terminology validation for LOINC and SNOMED-CT codes on `Observation.code`, checked against the public [tx.fhir.org](https://tx.fhir.org) terminology server (`CodeSystem/$validate-code`), run concurrently with a bounded worker pool
 - Postgres persistence via GORM, with upsert semantics
 - GraphQL API (built with [gqlgen](https://gqlgen.com/)) for querying
   stored records
@@ -187,4 +188,5 @@ before using it as more than a reference:
   project. Don't point it at real patient data.
 - The GraphQL endpoint (`/query`) is gated behind a static API key (`API_KEY` env var). The playground itself is not gated, only query execution.
 - Not audited, not intended for clinical use.
+- Terminology validation depends on the public `tx.fhir.org` server, which is explicitly non-production and rate-limited; if it's unreachable or slow, codes are marked unverified rather than blocking ingest (fail-open behavior).
 - HL7v2 support covers ADT^A01, ADT^A03, and ORU^R01 only.
