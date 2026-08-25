@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>fhir-interop pipeline demo</title>
+<style>
+  :root { --border: #e2e2e2; --text: #1a1a1a; --muted: #767676; --accent: #2563eb; --green: #15803d; --red: #b91c1c; --amber: #b45309; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, sans-serif; margin: 0; color: var(--text); background: #fff; }
+  header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header a { font-size: 13px; color: var(--muted); text-decoration: none; margin-left: auto; }
+  header a:hover { text-decoration: underline; }
+  main { display: flex; gap: 24px; padding: 24px; }
+  #input-panel { width: 340px; flex-shrink: 0; }
+  #output-panel { flex: 1; min-width: 0; }
+  h2 { font-size: 14px; margin: 0 0 8px; }
+  h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 20px 0 8px; }
+  .sample-btn { display: block; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); background: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; }
+  .sample-btn:hover { background: #f7f7f7; }
+  textarea { width: 100%; height: 160px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: ui-monospace, monospace; resize: vertical; }
+  #run-btn { margin-top: 12px; padding: 8px 14px; border: 1px solid var(--text); background: var(--text); color: #fff; border-radius: 4px; font-size: 13px; cursor: pointer; width: 100%; }
+  #run-btn:disabled { opacity: 0.4; cursor: default; }
+  .stage-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .stage-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .stage-row.running .stage-dot { background: var(--accent); }
+  .stage-row.done .stage-dot { background: var(--green); }
+  .stage-row.error .stage-dot { background: var(--red); }
+  .stage-name { font-weight: 500; width: 110px; flex-shrink: 0; }
+  .stage-msg { color: var(--muted); font-size: 12px; }
+  #term-results { margin-top: 16px; }
+  .term-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .term-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; width: 74px; text-align: center; }
+  .term-badge.valid { background: #dcfce7; color: var(--green); }
+  .term-badge.invalid { background: #fee2e2; color: var(--red); }
+  .term-badge.unverified { background: #fef3c7; color: var(--amber); }
+  .term-code { font-family: ui-monospace, monospace; font-size: 12px; }
+  .term-sim { font-size: 11px; color: var(--muted); font-style: italic; margin-left: 6px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 16px 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>fhir-interop pipeline demo</h1>
+  <a href="/app">Back to browser</a>
+</header>
+
+<main>
+  <div id="input-panel">
+    <h3>Sample bundles</h3>
+    <button class="sample-btn" data-sample="minimal">FHIR minimal sample</button>
+    <button class="sample-btn" data-sample="terminology">Terminology demo (valid / invalid / unverified)</button>
+    <h3>Or paste your own FHIR JSON</h3>
+    <textarea id="paste-box" placeholder="Paste a FHIR Bundle JSON here..."></textarea>
+    <button id="run-btn">Run pipeline</button>
+  </div>
+
+  <div id="output-panel">
+    <h2>Pipeline stages</h2>
+    <div id="stages"></div>
+    <div id="term-results"></div>
+  </div>
+</main>
+
+<script>
+const STAGES = [
+  { key: 'parse', label: 'Parse' },
+  { key: 'convert', label: 'Convert' },
+  { key: 'validate', label: 'Validate' },
+  { key: 'terminology', label: 'Terminology' },
+  { key: 'persist', label: 'Persist' },
+];
+
+const SAMPLE_MINIMAL = `{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:patient-1",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-1",
+        "identifier": [{ "system": "https://example.org/mrn", "value": "MRN001" }],
+        "name": [{ "use": "official", "family": "Dela Cruz", "given": ["Juan"] }],
+        "gender": "male",
+        "birthDate": "1990-05-14",
+        "address": [
+          { "line": ["123 Rizal St"], "city": "Manila", "state": "NCR", "postalCode": "1000", "country": "PH" }
+        ]
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:encounter-1",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "encounter-1",
+        "status": "finished",
+        "class": { "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory" },
+        "subject": { "reference": "urn:uuid:patient-1" },
+        "period": { "start": "2026-01-10T08:00:00Z", "end": "2026-01-10T08:30:00Z" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:observation-1",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "observation-1",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "vital-signs" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "8867-4", "display": "Heart rate" }]
+        },
+        "subject": { "reference": "urn:uuid:patient-1" },
+        "encounter": { "reference": "urn:uuid:encounter-1" },
+        "effectiveDateTime": "2026-01-10T08:05:00Z",
+        "valueQuantity": { "value": 72, "unit": "beats/minute", "system": "http://unitsofmeasure.org", "code": "/min" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:condition-1",
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-1",
+        "subject": { "reference": "urn:uuid:patient-1" }
+      }
+    }
+  ]
+}`;
+
+const SAMPLE_TERMINOLOGY = `{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:demo-patient-1",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "demo-patient-1",
+        "identifier": [
+          { "system": "urn:demo:mrn", "value": "DEMO-0001", "use": "official" }
+        ],
+        "name": [
+          { "use": "official", "family": "Santos", "given": ["Elena"] }
+        ],
+        "gender": "female",
+        "birthDate": "1988-04-12"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-encounter-1",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "demo-encounter-1",
+        "status": "finished",
+        "class": { "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory" },
+        "type": [
+          { "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }
+        ],
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "period": { "start": "2026-08-20T09:00:00Z", "end": "2026-08-20T09:30:00Z" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-valid-loinc",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-valid-loinc",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "1963-8", "display": "Bicarbonate [Moles/volume] in Serum or Plasma" }],
+          "text": "Bicarbonate"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:15:00Z",
+        "valueQuantity": { "value": 24.5, "unit": "mmol/L", "system": "http://unitsofmeasure.org", "code": "mmol/L" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-valid-snomed",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-valid-snomed",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "exam", "display": "Exam" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "255604002", "display": "Mild" }],
+          "text": "Severity: Mild"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:18:00Z",
+        "valueCodeableConcept": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "255604002", "display": "Mild" }],
+          "text": "Mild"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-invalid-loinc",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-invalid-loinc",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "99999-9", "display": "Not a real LOINC code" }],
+          "text": "Invalid demo code"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:20:00Z",
+        "valueString": "N/A"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-unverified",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-unverified",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "9999-DEMO", "display": "Simulated terminology server timeout" }],
+          "text": "Simulated unverified code"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:22:00Z",
+        "valueString": "N/A"
+      }
+    }
+  ]
+}`;
+
+const SAMPLES = {
+  minimal: SAMPLE_MINIMAL,
+  terminology: SAMPLE_TERMINOLOGY,
+};
+
+const runBtn = document.getElementById('run-btn');
+const pasteBox = document.getElementById('paste-box');
+const stagesEl = document.getElementById('stages');
+const termResultsEl = document.getElementById('term-results');
+
+function renderStages() {
+  stagesEl.innerHTML = STAGES.map(s => `
+    <div class="stage-row" data-stage="${s.key}">
+      <div class="stage-dot"></div>
+      <div class="stage-name">${s.label}</div>
+      <div class="stage-msg"></div>
+    </div>
+  `).join('');
+}
+
+function setStage(stage, status, message) {
+  const row = stagesEl.querySelector(`[data-stage="${stage}"]`);
+  if (!row) return;
+  row.className = 'stage-row ' + status;
+  row.querySelector('.stage-msg').textContent = message || '';
+}
+
+function addTerminologyResult(ev) {
+  const row = document.createElement('div');
+  row.className = 'term-row';
+  const sim = ev.simulated ? '<span class="term-sim">(simulated)</span>' : '';
+  row.innerHTML = `
+    <span class="term-badge ${ev.result}">${ev.result}</span>
+    <span class="term-code">${ev.code}</span>
+    <span>${ev.display || ''}</span>
+    ${sim}
+  `;
+  termResultsEl.appendChild(row);
+}
+
+document.querySelectorAll('.sample-btn').forEach(btn => {
+  btn.onclick = () => {
+    pasteBox.value = SAMPLES[btn.dataset.sample];
+  };
+});
+
+runBtn.onclick = async () => {
+  const body = pasteBox.value.trim();
+  if (!body) {
+    alert('Paste or select a sample bundle first.');
+    return;
+  }
+
+  runBtn.disabled = true;
+  renderStages();
+  termResultsEl.innerHTML = '';
+
+  try {
+    const runRes = await fetch('/demo/run', { method: 'POST', body });
+    if (!runRes.ok) throw new Error('run failed: ' + runRes.status);
+    const { id } = await runRes.json();
+
+    const es = new EventSource('/demo/stream?id=' + id);
+
+    es.addEventListener('stage', (e) => {
+      const data = JSON.parse(e.data);
+      setStage(data.stage, data.status, data.message);
+    });
+
+    es.addEventListener('terminology', (e) => {
+      const data = JSON.parse(e.data);
+      addTerminologyResult(data);
+    });
+
+    es.addEventListener('complete', () => {
+      es.close();
+      runBtn.disabled = false;
+    });
+
+    es.onerror = () => {
+      es.close();
+      runBtn.disabled = false;
+    };
+  } catch (err) {
+    alert(err.message);
+    runBtn.disabled = false;
+  }
+};
+
+renderStages();
+</script>
+
+</body>
+</html>

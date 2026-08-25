@@ -1,0 +1,114 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:demo-patient-1",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "demo-patient-1",
+        "identifier": [
+          { "system": "urn:demo:mrn", "value": "DEMO-0001", "use": "official" }
+        ],
+        "name": [
+          { "use": "official", "family": "Santos", "given": ["Elena"] }
+        ],
+        "gender": "female",
+        "birthDate": "1988-04-12"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-encounter-1",
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "demo-encounter-1",
+        "status": "finished",
+        "class": { "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode", "code": "AMB", "display": "ambulatory" },
+        "type": [
+          { "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }
+        ],
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "period": { "start": "2026-08-20T09:00:00Z", "end": "2026-08-20T09:30:00Z" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-valid-loinc",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-valid-loinc",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "1963-8", "display": "Bicarbonate [Moles/volume] in Serum or Plasma" }],
+          "text": "Bicarbonate"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:15:00Z",
+        "valueQuantity": { "value": 24.5, "unit": "mmol/L", "system": "http://unitsofmeasure.org", "code": "mmol/L" }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-valid-snomed",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-valid-snomed",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "exam", "display": "Exam" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "255604002", "display": "Mild" }],
+          "text": "Severity: Mild"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:18:00Z",
+        "valueCodeableConcept": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "255604002", "display": "Mild" }],
+          "text": "Mild"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-invalid-loinc",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-invalid-loinc",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "99999-9", "display": "Not a real LOINC code" }],
+          "text": "Invalid demo code"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:20:00Z",
+        "valueString": "N/A"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:demo-obs-unverified",
+      "resource": {
+        "resourceType": "Observation",
+        "id": "demo-obs-unverified",
+        "status": "final",
+        "category": [
+          { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/observation-category", "code": "laboratory", "display": "Laboratory" }] }
+        ],
+        "code": {
+          "coding": [{ "system": "http://loinc.org", "code": "9999-DEMO", "display": "Simulated terminology server timeout" }],
+          "text": "Simulated unverified code"
+        },
+        "subject": { "reference": "Patient/demo-patient-1", "type": "Patient" },
+        "encounter": { "reference": "Encounter/demo-encounter-1", "type": "Encounter" },
+        "effectiveDateTime": "2026-08-20T09:22:00Z",
+        "valueString": "N/A"
+      }
+    }
+  ]
+}
