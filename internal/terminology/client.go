@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const baseURL = "https://tx.fhir.org/r4/CodeSystem/$validate-code"
+const defaultBaseURL = "https://tx.fhir.org/r4/CodeSystem/$validate-code"
 
 const (
 	SystemLOINC  = "http://loinc.org"
@@ -32,11 +32,20 @@ type parametersResponse struct {
 
 type Client struct {
 	httpClient *http.Client
+	baseURL    string
 }
 
 func NewClient() *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    defaultBaseURL,
+	}
+}
+
+func NewClientWithBaseURL(base string) *Client {
+	return &Client{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		baseURL:    base,
 	}
 }
 
@@ -45,7 +54,7 @@ func (c *Client) ValidateCode(ctx context.Context, system, code string) (*Result
 	q.Set("url", system)
 	q.Set("code", code)
 
-	reqURL := baseURL + "?" + q.Encode()
+	reqURL := c.baseURL + "?" + q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {

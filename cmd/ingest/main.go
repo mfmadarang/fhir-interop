@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
 	"github.com/mfmadarang/fhir-interop/internal/hl7v2"
 	"github.com/mfmadarang/fhir-interop/internal/store"
+	"github.com/mfmadarang/fhir-interop/internal/terminology"
 	"github.com/mfmadarang/fhir-interop/internal/validate"
 )
 
@@ -40,6 +42,9 @@ func main() {
 	if err := store.Migrate(db); err != nil {
 		log.Fatalf("running migrations: %v", err)
 	}
+
+	termClient := terminology.NewClient()
+	ctx := context.Background()
 
 	files, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
@@ -73,6 +78,13 @@ func main() {
 
 		if issues := validate.ValidateBundle(parsed); len(issues) > 0 {
 			log.Printf("%s: %d validation issue(s):", filepath.Base(path), len(issues))
+			for _, iss := range issues {
+				log.Printf("  - %s", iss)
+			}
+		}
+
+		if issues := validate.ValidateBundleTerminology(ctx, termClient, parsed); len(issues) > 0 {
+			log.Printf("%s: %d terminology issue(s):", filepath.Base(path), len(issues))
 			for _, iss := range issues {
 				log.Printf("  - %s", iss)
 			}
