@@ -45,6 +45,9 @@ format the data came from.
 - Postgres persistence via GORM, with upsert semantics
 - GraphQL API (built with [gqlgen](https://gqlgen.com/)) for querying
   stored records
+- FHIR-style REST read and search for `Patient`: `GET /fhir/Patient/{id}`
+  and `GET /fhir/Patient?family=...`, returning the stored FHIR JSON and a
+  `searchset` Bundle (`internal/rest`)
 - Static API key authentication on the GraphQL query endpoint (`internal/auth`)
 - Cursor-based pagination on `patients` (Relay-style `Connection`/`edges`/`pageInfo`), so listing works safely as the dataset grows
 - `cmd/ingest` for bulk-loading a folder of FHIR bundles
@@ -165,6 +168,28 @@ query {
   }
 }
 ```
+
+### FHIR REST API (Patient)
+
+A small FHIR-style REST API sits next to the GraphQL one. It's read-only and
+currently only covers `Patient`. No API key needed.
+
+Read one patient by id (returns the stored FHIR `Patient` JSON):
+
+```bash
+curl http://localhost:8080/fhir/Patient/<id>
+```
+
+Search (returns a FHIR `Bundle` with `type: searchset`):
+
+```bash
+curl "http://localhost:8080/fhir/Patient?family=Smith&gender=female"
+```
+
+Supported search params: `family`, `given` (both case-insensitive prefix
+match), `gender`, `birthdate` (both exact), and `_count` to limit the number
+of results (default 50, max 200). A missing patient returns 404. Errors are
+plain HTTP for now; a later change adds FHIR `OperationOutcome` responses.
 
 ### Running via Docker
 

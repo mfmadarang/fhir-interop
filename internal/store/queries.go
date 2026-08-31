@@ -14,6 +14,41 @@ func GetPatient(db *gorm.DB, id string) (*PatientRecord, error) {
 	return &rec, nil
 }
 
+// filters for SearchPatients; unset fields are ignored
+type PatientSearch struct {
+	Family    string
+	Given     string
+	Gender    string
+	BirthDate string
+	Limit     int
+}
+
+// searches patients by the set fields. family/given are case-insensitive prefix matches, gender/birthdate exact
+func SearchPatients(db *gorm.DB, s PatientSearch) ([]*PatientRecord, error) {
+	q := db.Order("id")
+	if s.Family != "" {
+		q = q.Where("family_name ILIKE ?", s.Family+"%")
+	}
+	if s.Given != "" {
+		q = q.Where("given_name ILIKE ?", s.Given+"%")
+	}
+	if s.Gender != "" {
+		q = q.Where("gender = ?", s.Gender)
+	}
+	if s.BirthDate != "" {
+		q = q.Where("birth_date = ?", s.BirthDate)
+	}
+	if s.Limit > 0 {
+		q = q.Limit(s.Limit)
+	}
+
+	var recs []*PatientRecord
+	if err := q.Find(&recs).Error; err != nil {
+		return nil, err
+	}
+	return recs, nil
+}
+
 func ListPatients(db *gorm.DB, limit, offset int) ([]*PatientRecord, error) {
 	var recs []*PatientRecord
 	if err := db.Order("id").Limit(limit).Offset(offset).Find(&recs).Error; err != nil {

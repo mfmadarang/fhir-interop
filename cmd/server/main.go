@@ -13,6 +13,7 @@ import (
 	"github.com/mfmadarang/fhir-interop/internal/demo"
 	"github.com/mfmadarang/fhir-interop/internal/graph"
 	"github.com/mfmadarang/fhir-interop/internal/obs"
+	"github.com/mfmadarang/fhir-interop/internal/rest"
 	"github.com/mfmadarang/fhir-interop/internal/store"
 	"github.com/mfmadarang/fhir-interop/internal/terminology"
 )
@@ -52,6 +53,8 @@ func main() {
 
 	metrics := obs.NewMetrics()
 
+	restHandler := rest.New(rest.NewGormStore(db))
+
 	demoPage := func(w http.ResponseWriter, r *http.Request) {
 		data, err := os.ReadFile("cmd/server/web/pipeline.html")
 		if err != nil {
@@ -65,6 +68,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/", playground.Handler("fhir-interop GraphQL playground", "/query"))
 	mux.Handle("/query", metrics.Middleware("/query", auth.APIKeyMiddleware(cfg.APIKey)(gqlSrv)))
+	mux.Handle("/fhir/", metrics.Middleware("/fhir/", restHandler.Routes()))
 	mux.Handle("/app", http.RedirectHandler("/app/", http.StatusMovedPermanently))
 	mux.Handle("/app/", metrics.Middleware("/app/", web))
 	mux.Handle("/demo", metrics.Middleware("/demo", http.HandlerFunc(demoPage)))
