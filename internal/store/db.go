@@ -2,17 +2,15 @@ package store
 
 import (
 	"fmt"
-	"os"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// opens a GORM connection to Postgres using DATABASE_URL
-func Connect() (*gorm.DB, error) {
-	dsn := os.Getenv("DATABASE_URL")
+// opens a GORM connection to Postgres using the given DSN
+func Connect(dsn string) (*gorm.DB, error) {
 	if dsn == "" {
-		return nil, fmt.Errorf("DATABASE_URL is not set")
+		return nil, fmt.Errorf("database URL is empty")
 	}
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {

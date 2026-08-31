@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -9,49 +9,53 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 
 	"github.com/mfmadarang/fhir-interop/internal/auth"
+	"github.com/mfmadarang/fhir-interop/internal/config"
 	"github.com/mfmadarang/fhir-interop/internal/demo"
 	"github.com/mfmadarang/fhir-interop/internal/graph"
+	"github.com/mfmadarang/fhir-interop/internal/obs"
+	"github.com/mfmadarang/fhir-interop/internal/rest"
 	"github.com/mfmadarang/fhir-interop/internal/store"
 	"github.com/mfmadarang/fhir-interop/internal/terminology"
 )
 
 func main() {
-	apiKey := os.Getenv("API_KEY")
-	if apiKey == "" {
-		log.Fatal("API_KEY environment variable is required")
+	cfg, err := config.Load()
+	if err != nil {
+		// logger isn't set up yet, so print and bail
+		slog.Error("loading config", "err", err)
+		os.Exit(1)
 	}
 
-	db, err := store.Connect()
+	logger := obs.NewLogger(cfg)
+	slog.SetDefault(logger)
+
+	db, err := store.Connect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("connecting to database: %v", err)
+		logger.Error("connecting to database", "err", err)
+		os.Exit(1)
 	}
 
 	if err := store.Migrate(db); err != nil {
-		log.Fatalf("running migrations: %v", err)
+		logger.Error("running migrations", "err", err)
+		os.Exit(1)
 	}
 
 	resolver := &graph.Resolver{DB: db}
-	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
+	gqlSrv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: resolver}))
 
 	demoHandler := demo.NewHandler(db, terminology.NewClient())
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	web, err := webHandler()
+	if err != nil {
+		logger.Error("loading web assets", "err", err)
+		os.Exit(1)
 	}
 
-	http.Handle("/", playground.Handler("fhir-interop GraphQL playground", "/query"))
-	http.Handle("/query", auth.APIKeyMiddleware(apiKey)(srv))
-	http.HandleFunc("/app", func(w http.ResponseWriter, r *http.Request) {
-		data, err := os.ReadFile("cmd/server/web/index.html")
-		if err != nil {
-			http.Error(w, "app not found: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html")
-		w.Write(data)
-	})
-	http.HandleFunc("/demo", func(w http.ResponseWriter, r *http.Request) {
+	metrics := obs.NewMetrics()
+
+	restHandler := rest.New(rest.NewGormStore(db))
+
+	demoPage := func(w http.ResponseWriter, r *http.Request) {
 		data, err := os.ReadFile("cmd/server/web/pipeline.html")
 		if err != nil {
 			http.Error(w, "demo page not found: "+err.Error(), http.StatusInternalServerError)
@@ -59,10 +63,33 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(data)
-	})
-	http.HandleFunc("/demo/run", demoHandler.HandleRun)
-	http.HandleFunc("/demo/stream", demoHandler.HandleStream)
+	}
 
-	log.Printf("listening on :%s (playground at http://localhost:%s/, browser at http://localhost:%s/app, demo at http://localhost:%s/demo)", port, port, port, port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	mux := http.NewServeMux()
+	mux.Handle("/", playground.Handler("fhir-interop GraphQL playground", "/query"))
+	mux.Handle("/query", metrics.Middleware("/query", auth.APIKeyMiddleware(cfg.APIKey)(gqlSrv)))
+	mux.Handle("/fhir/", metrics.Middleware("/fhir/", restHandler.Routes()))
+	mux.Handle("/app", http.RedirectHandler("/app/", http.StatusMovedPermanently))
+	mux.Handle("/app/", metrics.Middleware("/app/", web))
+	mux.Handle("/demo", metrics.Middleware("/demo", http.HandlerFunc(demoPage)))
+	mux.Handle("/demo/run", metrics.Middleware("/demo/run", http.HandlerFunc(demoHandler.HandleRun)))
+	mux.HandleFunc("/demo/stream", demoHandler.HandleStream)
+	mux.HandleFunc("/healthz", obs.Healthz)
+	mux.Handle("/readyz", obs.Readyz(db))
+	mux.Handle("/metrics", metrics.Handler())
+
+	quiet := []string{"/healthz", "/readyz", "/metrics"}
+	root := obs.RequestLogger(logger, quiet, mux)
+
+	addr := ":" + cfg.Port
+	logger.Info("starting server",
+		"addr", addr,
+		"playground", "http://localhost:"+cfg.Port+"/",
+		"browser", "http://localhost:"+cfg.Port+"/app/",
+		"demo", "http://localhost:"+cfg.Port+"/demo",
+	)
+	if err := http.ListenAndServe(addr, root); err != nil {
+		logger.Error("server stopped", "err", err)
+		os.Exit(1)
+	}
 }
