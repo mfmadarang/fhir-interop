@@ -18,6 +18,18 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
+// pass Flush through so SSE handlers behind this wrapper can still stream
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// lets http.ResponseController reach the underlying writer
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 // logs one line per request. paths in skip are still served but not logged, so
 // health and metrics polling doesn't drown out everything else
 func RequestLogger(logger *slog.Logger, skip []string, next http.Handler) http.Handler {

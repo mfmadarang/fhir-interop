@@ -68,6 +68,26 @@ func TestRequestLoggerSkipsQuietPaths(t *testing.T) {
 	}
 }
 
+func TestRequestLoggerPreservesFlush(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(&strings.Builder{}, nil))
+
+	flushed := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatal("handler did not receive an http.Flusher")
+		}
+		f.Flush()
+		flushed = true
+	})
+	h := RequestLogger(logger, nil, next)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/demo/stream", nil))
+	if !flushed {
+		t.Fatal("expected the handler to flush")
+	}
+}
+
 func TestNewLoggerFormat(t *testing.T) {
 	jsonLog := NewLogger(config.Config{LogLevel: "info", LogFormat: "json"})
 	if jsonLog == nil {
