@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 )
@@ -31,6 +32,38 @@ func TestLoad(t *testing.T) {
 		}
 		if cfg.Port != "8080" {
 			t.Fatalf("Port = %q, want 8080", cfg.Port)
+		}
+	})
+
+	t.Run("log level and format default", func(t *testing.T) {
+		t.Setenv("API_KEY", "secret")
+		t.Setenv("DATABASE_URL", "postgres://localhost/db")
+		t.Setenv("LOG_LEVEL", "")
+		t.Setenv("LOG_FORMAT", "")
+
+		cfg, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+		if cfg.LogLevel != "info" || cfg.LogFormat != "text" {
+			t.Fatalf("got LogLevel=%q LogFormat=%q, want info/text", cfg.LogLevel, cfg.LogFormat)
+		}
+		if cfg.SlogLevel() != slog.LevelInfo {
+			t.Fatalf("SlogLevel() = %v, want info", cfg.SlogLevel())
+		}
+	})
+
+	t.Run("SlogLevel parses known levels", func(t *testing.T) {
+		cases := map[string]slog.Level{
+			"debug": slog.LevelDebug,
+			"warn":  slog.LevelWarn,
+			"error": slog.LevelError,
+			"bogus": slog.LevelInfo,
+		}
+		for in, want := range cases {
+			if got := (Config{LogLevel: in}).SlogLevel(); got != want {
+				t.Errorf("SlogLevel(%q) = %v, want %v", in, got, want)
+			}
 		}
 	})
 

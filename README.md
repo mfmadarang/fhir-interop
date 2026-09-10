@@ -51,6 +51,8 @@ format the data came from.
 - CI pipeline (build, vet, test, gofmt check) on every push and PR
 - Dockerfile + GitHub Actions workflow publishing images to GHCR on
   release
+- Structured logging with `log/slog` (text or JSON), plus `/healthz`,
+  `/readyz`, and a Prometheus `/metrics` endpoint (`internal/obs`)
 
 ## Getting started
 
@@ -86,7 +88,13 @@ export API_KEY="your-secret-key"
 
 The server reads its config from env vars on startup (`internal/config`).
 `API_KEY` and `DATABASE_URL` are required and it won't start without
-them; `PORT` is optional and defaults to `8080`.
+them. Optional ones:
+
+| Var | Default | Notes |
+| --- | --- | --- |
+| `PORT` | `8080` | HTTP port |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
+| `LOG_FORMAT` | `text` | `text` or `json` |
 
 ### 4. Load sample data
 
@@ -110,6 +118,8 @@ go run ./cmd/server
 ```
 
 Opens a GraphQL playground at `http://localhost:8080/`. The playground UI itself is open, but queries against `/query` require the key, add an `Authorization: Bearer <your key>` header in the playground's **Headers** panel, or with `curl`:
+
+The server also exposes `/healthz` (always OK while the process is up), `/readyz` (OK once the database answers a ping, 503 otherwise), and `/metrics` (Prometheus format). These three aren't logged, so health and scrape traffic doesn't flood the output.
 
 ```bash
 curl -H "Authorization: Bearer your-secret-key" \
