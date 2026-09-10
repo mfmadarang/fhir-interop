@@ -35,7 +35,7 @@ func main() {
 		log.Fatalf("unknown format %q: must be \"fhir\" or \"hl7v2\"", *format)
 	}
 
-	db, err := store.Connect()
+	db, err := store.Connect(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("connecting to database: %v", err)
 	}

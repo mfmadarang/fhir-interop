@@ -84,7 +84,9 @@ export DATABASE_URL="postgres://postgres:postgres@localhost:5433/fhir_interop?ss
 export API_KEY="your-secret-key"
 ```
 
-The server won't start without this set.
+The server reads its config from env vars on startup (`internal/config`).
+`API_KEY` and `DATABASE_URL` are required and it won't start without
+them; `PORT` is optional and defaults to `8080`.
 
 ### 4. Load sample data
 
