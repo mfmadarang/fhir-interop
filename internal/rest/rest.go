@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,7 @@ type patientStore interface {
 // saves parsed resources, same idea as patientStore
 type resourceWriter interface {
 	SaveBundle(pb *fhir.ParsedBundle) error
+	SaveIssues(pb *fhir.ParsedBundle, source string, issues []validate.Issue) error
 }
 
 type Handler struct {
@@ -150,10 +152,14 @@ func (h *Handler) readBody(w http.ResponseWriter, r *http.Request) (*fhir.Parsed
 // structural checks, plus the terminology check when a code validator is set
 func (h *Handler) check(r *http.Request, parsed *fhir.ParsedBundle) []validate.Issue {
 	issues := validate.ValidateBundle(parsed)
-	if h.codes != nil {
-		issues = append(issues, validate.ValidateBundleTerminology(r.Context(), h.codes, parsed)...)
+	return append(issues, h.checkTerminology(r, parsed)...)
+}
+
+func (h *Handler) checkTerminology(r *http.Request, parsed *fhir.ParsedBundle) []validate.Issue {
+	if h.codes == nil {
+		return nil
 	}
-	return issues
+	return validate.ValidateBundleTerminology(r.Context(), h.codes, parsed)
 }
 
 // POST /fhir/$validate: checks the resource and says what is wrong, saves nothing
@@ -186,6 +192,13 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err := h.writer.SaveBundle(parsed); err != nil {
 		writeError(w, http.StatusInternalServerError, "exception", "saving: "+err.Error())
 		return
+	}
+
+	// it passed, so any issues stored from an earlier version are out of date
+	for _, source := range []string{store.SourceStructural, store.SourceTerminology} {
+		if err := h.writer.SaveIssues(parsed, source, nil); err != nil {
+			slog.Warn("clearing stored validation issues", "source", source, "err", err)
+		}
 	}
 	writeOutcome(w, http.StatusCreated, newOutcome("information", "informational", "saved"))
 }

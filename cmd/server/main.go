@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -54,7 +55,7 @@ func main() {
 	metrics := obs.NewMetrics()
 
 	restStore := rest.NewGormStore(db)
-	restHandler := rest.New(restStore, restStore, terminology.NewClient(), auth.APIKeyMiddleware(cfg.APIKey))
+	restHandler := rest.New(restStore, restStore, terminology.NewCachedClient(terminology.NewClient(), store.NewTerminologyCache(db), 30*24*time.Hour), auth.APIKeyMiddleware(cfg.APIKey))
 
 	demoPage := func(w http.ResponseWriter, r *http.Request) {
 		data, err := os.ReadFile("cmd/server/web/pipeline.html")

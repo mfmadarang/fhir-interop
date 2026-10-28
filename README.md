@@ -64,6 +64,11 @@ from.
 - Terminology validation for LOINC and SNOMED-CT codes on `Observation.code`
   against the public [tx.fhir.org](https://tx.fhir.org) server
   (`CodeSystem/$validate-code`), run through a bounded worker pool
+- Answers from tx.fhir.org are saved in a `terminology_cache` table for 30 days,
+  so a code that was already checked doesn't go over the network again
+- Issues found when ingesting or posting a resource are saved in a
+  `validation_issues` table. Running it again replaces the old issues, so a
+  fixed resource loses them
 
 **Storage and APIs**
 - Postgres persistence via GORM, upsert by id, original resource kept in a raw

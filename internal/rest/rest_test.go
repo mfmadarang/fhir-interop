@@ -10,6 +10,7 @@ import (
 
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
 	"github.com/mfmadarang/fhir-interop/internal/store"
+	"github.com/mfmadarang/fhir-interop/internal/validate"
 )
 
 // fakeStore is an in-memory patientStore for the handler tests.
@@ -19,6 +20,12 @@ type fakeStore struct {
 	searchOut  []*store.PatientRecord
 	saved      []*fhir.ParsedBundle
 	saveErr    error
+	cleared    []string
+}
+
+func (f *fakeStore) SaveIssues(pb *fhir.ParsedBundle, source string, issues []validate.Issue) error {
+	f.cleared = append(f.cleared, source)
+	return nil
 }
 
 func (f *fakeStore) SaveBundle(pb *fhir.ParsedBundle) error {
@@ -206,6 +213,9 @@ func TestCreateSaves(t *testing.T) {
 	}
 	if len(f.saved) != 1 || len(f.saved[0].Patients) != 1 {
 		t.Fatalf("expected one saved patient, got %+v", f.saved)
+	}
+	if len(f.cleared) != 2 {
+		t.Fatalf("expected old issues cleared for both sources, got %v", f.cleared)
 	}
 }
 

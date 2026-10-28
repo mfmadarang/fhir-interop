@@ -3,6 +3,7 @@ package rest
 import (
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
 	"github.com/mfmadarang/fhir-interop/internal/store"
+	"github.com/mfmadarang/fhir-interop/internal/validate"
 	"gorm.io/gorm"
 )
 
@@ -25,4 +26,8 @@ func (g *gormStore) SearchPatients(s store.PatientSearch) ([]*store.PatientRecor
 
 func (g *gormStore) SaveBundle(pb *fhir.ParsedBundle) error {
 	return store.SaveBundle(g.db, pb)
+}
+
+func (g *gormStore) SaveIssues(pb *fhir.ParsedBundle, source string, issues []validate.Issue) error {
+	return store.SaveValidationIssues(g.db, pb, source, issues)
 }
