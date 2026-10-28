@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
 	"github.com/mfmadarang/fhir-interop/internal/store"
+	"github.com/mfmadarang/fhir-interop/internal/terminology"
 	"github.com/mfmadarang/fhir-interop/internal/validate"
 )
 
@@ -295,5 +297,59 @@ func TestPostGuard(t *testing.T) {
 	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/fhir/Patient", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET status = %d, want 200", rec.Code)
+	}
+}
+
+const goodObservation = `{"resourceType":"Observation","id":"o1","status":"final","code":{"coding":[{"system":"http://loinc.org","code":"8867-4"}]},"subject":{"reference":"Patient/p1"},"effectiveDateTime":"2026-01-10T08:05:00Z"}`
+
+type fakeCodes struct {
+	res *terminology.Result
+	err error
+}
+
+func (f fakeCodes) ValidateCode(ctx context.Context, system, code string) (*terminology.Result, error) {
+	return f.res, f.err
+}
+
+func TestCreateSavesWhenTerminologyIsDown(t *testing.T) {
+	f := &fakeStore{}
+	srv := New(f, f, fakeCodes{err: errors.New("timeout")}, nil).Routes()
+
+	rec := post(srv, "/fhir", goodObservation)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
+	}
+	if len(f.saved) != 1 {
+		t.Fatal("observation should have been saved")
+	}
+	oo := outcomeOf(t, rec)
+	if oo.Issue[0].Severity != "warning" {
+		t.Fatalf("severity = %q, want warning", oo.Issue[0].Severity)
+	}
+}
+
+func TestCreateRejectsInvalidCode(t *testing.T) {
+	f := &fakeStore{}
+	srv := New(f, f, fakeCodes{res: &terminology.Result{Valid: false, Message: "unknown code"}}, nil).Routes()
+
+	rec := post(srv, "/fhir", goodObservation)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", rec.Code)
+	}
+	if len(f.saved) != 0 {
+		t.Fatal("observation with a bad code should not be saved")
+	}
+}
+
+func TestValidateReportsWarning(t *testing.T) {
+	f := &fakeStore{}
+	srv := New(f, f, fakeCodes{err: errors.New("timeout")}, nil).Routes()
+
+	rec := post(srv, "/fhir/$validate", goodObservation)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if oo := outcomeOf(t, rec); oo.Issue[0].Severity != "warning" {
+		t.Fatalf("severity = %q, want warning", oo.Issue[0].Severity)
 	}
 }

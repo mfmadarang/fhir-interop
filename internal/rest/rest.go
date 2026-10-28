@@ -177,15 +177,20 @@ func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
 	writeOutcome(w, http.StatusOK, outcomeFromIssues(issues))
 }
 
-// POST /fhir: validates, then saves. a resource with issues is rejected
+// POST /fhir: validates, then saves. real problems reject the resource, but a code
+// we couldn't check (tx.fhir.org down) is only a warning and the save goes ahead
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	parsed, ok := h.readBody(w, r)
 	if !ok {
 		return
 	}
 
-	if issues := h.check(r, parsed); len(issues) > 0 {
-		writeOutcome(w, http.StatusUnprocessableEntity, outcomeFromIssues(issues))
+	structIssues := validate.ValidateBundle(parsed)
+	termIssues := h.checkTerminology(r, parsed)
+	all := append(append([]validate.Issue{}, structIssues...), termIssues...)
+
+	if hasErrors(all) {
+		writeOutcome(w, http.StatusUnprocessableEntity, outcomeFromIssues(all))
 		return
 	}
 
@@ -194,11 +199,26 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// it passed, so any issues stored from an earlier version are out of date
-	for _, source := range []string{store.SourceStructural, store.SourceTerminology} {
-		if err := h.writer.SaveIssues(parsed, source, nil); err != nil {
-			slog.Warn("clearing stored validation issues", "source", source, "err", err)
-		}
+	// what's stored should match this version of the resource, so old issues get replaced
+	if err := h.writer.SaveIssues(parsed, store.SourceStructural, structIssues); err != nil {
+		slog.Warn("saving validation issues", "source", store.SourceStructural, "err", err)
+	}
+	if err := h.writer.SaveIssues(parsed, store.SourceTerminology, termIssues); err != nil {
+		slog.Warn("saving validation issues", "source", store.SourceTerminology, "err", err)
+	}
+
+	if len(all) > 0 {
+		writeOutcome(w, http.StatusCreated, outcomeFromIssues(all))
+		return
 	}
 	writeOutcome(w, http.StatusCreated, newOutcome("information", "informational", "saved"))
+}
+
+func hasErrors(issues []validate.Issue) bool {
+	for _, iss := range issues {
+		if !iss.Warning {
+			return true
+		}
+	}
+	return false
 }

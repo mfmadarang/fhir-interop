@@ -89,6 +89,9 @@ func TestValidateObservationTerminology_ServerError(t *testing.T) {
 	if len(issues) != 1 {
 		t.Fatalf("expected 1 issue, got %d", len(issues))
 	}
+	if !issues[0].Warning {
+		t.Errorf("an unverified code should be a warning")
+	}
 	if !strings.Contains(issues[0].Message, "unverified") {
 		t.Errorf("expected message to mention unverified, got %q", issues[0].Message)
 	}

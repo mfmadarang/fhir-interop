@@ -28,7 +28,13 @@ func ValidateObservationTerminology(ctx context.Context, client CodeValidator, o
 
 		result, err := client.ValidateCode(ctx, c.System, c.Code)
 		if err != nil {
-			add("code", fmt.Sprintf("could not verify code %q against %s (marked unverified): %v", c.Code, c.System, err))
+			issues = append(issues, Issue{
+				ResourceType: "Observation",
+				ResourceID:   o.ID,
+				Field:        "code",
+				Message:      fmt.Sprintf("could not verify code %q against %s (marked unverified): %v", c.Code, c.System, err),
+				Warning:      true,
+			})
 			continue
 		}
 		if !result.Valid {

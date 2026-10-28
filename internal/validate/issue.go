@@ -8,6 +8,7 @@ type Issue struct {
 	ResourceID   string
 	Field        string
 	Message      string
+	Warning      bool // true when we couldn't check it, false means a real problem
 }
 
 func (i Issue) String() string {

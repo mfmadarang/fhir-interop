@@ -21,6 +21,7 @@ type ValidationIssueRecord struct {
 	Source       string
 	Field        string
 	Message      string
+	Warning      bool
 	CreatedAt    time.Time
 }
 
@@ -61,6 +62,7 @@ func SaveValidationIssues(db *gorm.DB, pb *fhir.ParsedBundle, source string, iss
 				Source:       source,
 				Field:        iss.Field,
 				Message:      iss.Message,
+				Warning:      iss.Warning,
 			})
 		}
 		return tx.Create(&recs).Error

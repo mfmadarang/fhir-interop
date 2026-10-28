@@ -223,7 +223,10 @@ curl -X POST http://localhost:8080/fhir \
 `$validate` runs the structural checks and the terminology check, and returns an
 `OperationOutcome` listing what is wrong (or one "no issues found" entry). It
 always answers 200 for a body it could read. `POST /fhir` runs the same checks
-and only saves if there are none: 201 when saved, 422 with the issues if not.
+and only saves if there are no errors: 201 when saved, 422 with the issues if
+not. A code that couldn't be checked because tx.fhir.org was slow or down is
+only a warning, so the resource still saves and the warning comes back in the
+201.
 A body that isn't JSON, has no `resourceType`, or is a type we don't handle
 gets a 400. Errors from the read endpoints, like a 404, are `OperationOutcome`
 documents too.
