@@ -21,5 +21,6 @@ func Connect(dsn string) (*gorm.DB, error) {
 
 // runs GORM AutoMigrate for all persisted resource types.
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&PatientRecord{}, &EncounterRecord{}, &ObservationRecord{})
+	return db.AutoMigrate(&PatientRecord{}, &EncounterRecord{}, &ObservationRecord{},
+		&TerminologyCacheRecord{}, &ValidationIssueRecord{})
 }

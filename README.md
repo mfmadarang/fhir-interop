@@ -64,6 +64,11 @@ from.
 - Terminology validation for LOINC and SNOMED-CT codes on `Observation.code`
   against the public [tx.fhir.org](https://tx.fhir.org) server
   (`CodeSystem/$validate-code`), run through a bounded worker pool
+- Answers from tx.fhir.org are saved in a `terminology_cache` table for 30 days,
+  so a code that was already checked doesn't go over the network again
+- Issues found when ingesting or posting a resource are saved in a
+  `validation_issues` table. Running it again replaces the old issues, so a
+  fixed resource loses them
 
 **Storage and APIs**
 - Postgres persistence via GORM, upsert by id, original resource kept in a raw
@@ -218,7 +223,10 @@ curl -X POST http://localhost:8080/fhir \
 `$validate` runs the structural checks and the terminology check, and returns an
 `OperationOutcome` listing what is wrong (or one "no issues found" entry). It
 always answers 200 for a body it could read. `POST /fhir` runs the same checks
-and only saves if there are none: 201 when saved, 422 with the issues if not.
+and only saves if there are no errors: 201 when saved, 422 with the issues if
+not. A code that couldn't be checked because tx.fhir.org was slow or down is
+only a warning, so the resource still saves and the warning comes back in the
+201.
 A body that isn't JSON, has no `resourceType`, or is a type we don't handle
 gets a 400. Errors from the read endpoints, like a 404, are `OperationOutcome`
 documents too.

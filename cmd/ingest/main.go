@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mfmadarang/fhir-interop/internal/convert"
 	"github.com/mfmadarang/fhir-interop/internal/fhir"
@@ -43,7 +44,7 @@ func main() {
 		log.Fatalf("running migrations: %v", err)
 	}
 
-	termClient := terminology.NewClient()
+	termClient := terminology.NewCachedClient(terminology.NewClient(), store.NewTerminologyCache(db), 30*24*time.Hour)
 	ctx := context.Background()
 
 	files, err := filepath.Glob(filepath.Join(dir, glob))
@@ -76,16 +77,18 @@ func main() {
 			continue
 		}
 
-		if issues := validate.ValidateBundle(parsed); len(issues) > 0 {
-			log.Printf("%s: %d validation issue(s):", filepath.Base(path), len(issues))
-			for _, iss := range issues {
+		structIssues := validate.ValidateBundle(parsed)
+		if len(structIssues) > 0 {
+			log.Printf("%s: %d validation issue(s):", filepath.Base(path), len(structIssues))
+			for _, iss := range structIssues {
 				log.Printf("  - %s", iss)
 			}
 		}
 
-		if issues := validate.ValidateBundleTerminology(ctx, termClient, parsed); len(issues) > 0 {
-			log.Printf("%s: %d terminology issue(s):", filepath.Base(path), len(issues))
-			for _, iss := range issues {
+		termIssues := validate.ValidateBundleTerminology(ctx, termClient, parsed)
+		if len(termIssues) > 0 {
+			log.Printf("%s: %d terminology issue(s):", filepath.Base(path), len(termIssues))
+			for _, iss := range termIssues {
 				log.Printf("  - %s", iss)
 			}
 		}
@@ -94,6 +97,14 @@ func main() {
 			log.Printf("skipping %s: saving bundle: %v", path, err)
 			skipped++
 			continue
+		}
+
+		// the bundle is already saved, so a failure here only costs the issue history
+		if err := store.SaveValidationIssues(db, parsed, store.SourceStructural, structIssues); err != nil {
+			log.Printf("%s: saving validation issues: %v", filepath.Base(path), err)
+		}
+		if err := store.SaveValidationIssues(db, parsed, store.SourceTerminology, termIssues); err != nil {
+			log.Printf("%s: saving terminology issues: %v", filepath.Base(path), err)
 		}
 
 		loaded++

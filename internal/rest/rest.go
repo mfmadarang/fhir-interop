@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -29,6 +30,7 @@ type patientStore interface {
 // saves parsed resources, same idea as patientStore
 type resourceWriter interface {
 	SaveBundle(pb *fhir.ParsedBundle) error
+	SaveIssues(pb *fhir.ParsedBundle, source string, issues []validate.Issue) error
 }
 
 type Handler struct {
@@ -150,10 +152,14 @@ func (h *Handler) readBody(w http.ResponseWriter, r *http.Request) (*fhir.Parsed
 // structural checks, plus the terminology check when a code validator is set
 func (h *Handler) check(r *http.Request, parsed *fhir.ParsedBundle) []validate.Issue {
 	issues := validate.ValidateBundle(parsed)
-	if h.codes != nil {
-		issues = append(issues, validate.ValidateBundleTerminology(r.Context(), h.codes, parsed)...)
+	return append(issues, h.checkTerminology(r, parsed)...)
+}
+
+func (h *Handler) checkTerminology(r *http.Request, parsed *fhir.ParsedBundle) []validate.Issue {
+	if h.codes == nil {
+		return nil
 	}
-	return issues
+	return validate.ValidateBundleTerminology(r.Context(), h.codes, parsed)
 }
 
 // POST /fhir/$validate: checks the resource and says what is wrong, saves nothing
@@ -171,15 +177,20 @@ func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
 	writeOutcome(w, http.StatusOK, outcomeFromIssues(issues))
 }
 
-// POST /fhir: validates, then saves. a resource with issues is rejected
+// POST /fhir: validates, then saves. real problems reject the resource, but a code
+// we couldn't check (tx.fhir.org down) is only a warning and the save goes ahead
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	parsed, ok := h.readBody(w, r)
 	if !ok {
 		return
 	}
 
-	if issues := h.check(r, parsed); len(issues) > 0 {
-		writeOutcome(w, http.StatusUnprocessableEntity, outcomeFromIssues(issues))
+	structIssues := validate.ValidateBundle(parsed)
+	termIssues := h.checkTerminology(r, parsed)
+	all := append(append([]validate.Issue{}, structIssues...), termIssues...)
+
+	if hasErrors(all) {
+		writeOutcome(w, http.StatusUnprocessableEntity, outcomeFromIssues(all))
 		return
 	}
 
@@ -187,5 +198,27 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "exception", "saving: "+err.Error())
 		return
 	}
+
+	// what's stored should match this version of the resource, so old issues get replaced
+	if err := h.writer.SaveIssues(parsed, store.SourceStructural, structIssues); err != nil {
+		slog.Warn("saving validation issues", "source", store.SourceStructural, "err", err)
+	}
+	if err := h.writer.SaveIssues(parsed, store.SourceTerminology, termIssues); err != nil {
+		slog.Warn("saving validation issues", "source", store.SourceTerminology, "err", err)
+	}
+
+	if len(all) > 0 {
+		writeOutcome(w, http.StatusCreated, outcomeFromIssues(all))
+		return
+	}
 	writeOutcome(w, http.StatusCreated, newOutcome("information", "informational", "saved"))
+}
+
+func hasErrors(issues []validate.Issue) bool {
+	for _, iss := range issues {
+		if !iss.Warning {
+			return true
+		}
+	}
+	return false
 }

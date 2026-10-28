@@ -53,9 +53,13 @@ func outcomeFromIssues(issues []validate.Issue) operationOutcome {
 		if id == "" {
 			id = "(no id)"
 		}
+		severity, code := "error", "invalid"
+		if iss.Warning {
+			severity, code = "warning", "informational"
+		}
 		oo.Issue = append(oo.Issue, outcomeIssue{
-			Severity:   "error",
-			Code:       "invalid",
+			Severity:   severity,
+			Code:       code,
 			Details:    &outcomeText{Text: iss.ResourceType + "/" + id + ": " + iss.Message},
 			Expression: []string{expr},
 		})
