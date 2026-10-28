@@ -2,10 +2,13 @@ package rest
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/mfmadarang/fhir-interop/internal/fhir"
 	"github.com/mfmadarang/fhir-interop/internal/store"
+	"github.com/mfmadarang/fhir-interop/internal/validate"
 )
 
 const fhirJSON = "application/fhir+json"
@@ -13,6 +16,8 @@ const fhirJSON = "application/fhir+json"
 const (
 	defaultSearchLimit = 50
 	maxSearchLimit     = 200
+
+	maxBodyBytes = 10 << 20
 )
 
 // the bit of the store package the handlers need, as an interface so tests can fake it
@@ -21,12 +26,24 @@ type patientStore interface {
 	SearchPatients(s store.PatientSearch) ([]*store.PatientRecord, error)
 }
 
-type Handler struct {
-	patients patientStore
+// saves parsed resources, same idea as patientStore
+type resourceWriter interface {
+	SaveBundle(pb *fhir.ParsedBundle) error
 }
 
-func New(p patientStore) *Handler {
-	return &Handler{patients: p}
+type Handler struct {
+	patients patientStore
+	writer   resourceWriter
+	codes    validate.CodeValidator // nil skips the terminology check
+	guard    func(http.Handler) http.Handler
+}
+
+// guard wraps the POST routes (the API key check), nil means no check
+func New(p patientStore, w resourceWriter, codes validate.CodeValidator, guard func(http.Handler) http.Handler) *Handler {
+	if guard == nil {
+		guard = func(next http.Handler) http.Handler { return next }
+	}
+	return &Handler{patients: p, writer: w, codes: codes, guard: guard}
 }
 
 // mux for the /fhir endpoints
@@ -34,6 +51,8 @@ func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /fhir/Patient/{id}", h.readPatient)
 	mux.HandleFunc("GET /fhir/Patient", h.searchPatients)
+	mux.Handle("POST /fhir/$validate", h.guard(http.HandlerFunc(h.validate)))
+	mux.Handle("POST /fhir", h.guard(http.HandlerFunc(h.create)))
 	return mux
 }
 
@@ -42,11 +61,11 @@ func (h *Handler) readPatient(w http.ResponseWriter, r *http.Request) {
 
 	rec, err := h.patients.GetPatient(id)
 	if err != nil {
-		http.Error(w, "looking up patient: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "exception", "looking up patient: "+err.Error())
 		return
 	}
 	if rec == nil {
-		http.Error(w, "Patient "+id+" not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "not-found", "Patient "+id+" not found")
 		return
 	}
 
@@ -57,7 +76,7 @@ func (h *Handler) readPatient(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) searchPatients(w http.ResponseWriter, r *http.Request) {
 	recs, err := h.patients.SearchPatients(parsePatientSearch(r))
 	if err != nil {
-		http.Error(w, "searching patients: "+err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "exception", "searching patients: "+err.Error())
 		return
 	}
 
@@ -111,4 +130,62 @@ func buildSearchBundle(recs []*store.PatientRecord) bundle {
 		b.Entry = append(b.Entry, bundleEntry{Resource: json.RawMessage(rec.Raw)})
 	}
 	return b
+}
+
+// reads the posted body and parses it, writing the error response itself if that fails
+func (h *Handler) readBody(w http.ResponseWriter, r *http.Request) (*fhir.ParsedBundle, bool) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid", "reading body: "+err.Error())
+		return nil, false
+	}
+	parsed, err := fhir.ParseResource(data)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid", err.Error())
+		return nil, false
+	}
+	return parsed, true
+}
+
+// structural checks, plus the terminology check when a code validator is set
+func (h *Handler) check(r *http.Request, parsed *fhir.ParsedBundle) []validate.Issue {
+	issues := validate.ValidateBundle(parsed)
+	if h.codes != nil {
+		issues = append(issues, validate.ValidateBundleTerminology(r.Context(), h.codes, parsed)...)
+	}
+	return issues
+}
+
+// POST /fhir/$validate: checks the resource and says what is wrong, saves nothing
+func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
+	parsed, ok := h.readBody(w, r)
+	if !ok {
+		return
+	}
+
+	issues := h.check(r, parsed)
+	if len(issues) == 0 {
+		writeOutcome(w, http.StatusOK, newOutcome("information", "informational", "no issues found"))
+		return
+	}
+	writeOutcome(w, http.StatusOK, outcomeFromIssues(issues))
+}
+
+// POST /fhir: validates, then saves. a resource with issues is rejected
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	parsed, ok := h.readBody(w, r)
+	if !ok {
+		return
+	}
+
+	if issues := h.check(r, parsed); len(issues) > 0 {
+		writeOutcome(w, http.StatusUnprocessableEntity, outcomeFromIssues(issues))
+		return
+	}
+
+	if err := h.writer.SaveBundle(parsed); err != nil {
+		writeError(w, http.StatusInternalServerError, "exception", "saving: "+err.Error())
+		return
+	}
+	writeOutcome(w, http.StatusCreated, newOutcome("information", "informational", "saved"))
 }

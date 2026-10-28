@@ -53,7 +53,8 @@ func main() {
 
 	metrics := obs.NewMetrics()
 
-	restHandler := rest.New(rest.NewGormStore(db))
+	restStore := rest.NewGormStore(db)
+	restHandler := rest.New(restStore, restStore, terminology.NewClient(), auth.APIKeyMiddleware(cfg.APIKey))
 
 	demoPage := func(w http.ResponseWriter, r *http.Request) {
 		data, err := os.ReadFile("cmd/server/web/pipeline.html")

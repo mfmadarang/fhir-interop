@@ -73,6 +73,8 @@ from.
 - FHIR-style REST read and search for `Patient`: `GET /fhir/Patient/{id}` and
   `GET /fhir/Patient?family=...`, returning stored FHIR JSON and a `searchset`
   Bundle
+- `POST /fhir` to save a Bundle or a single resource, and `POST /fhir/$validate`
+  to check one without saving it. Both answer with a FHIR `OperationOutcome`
 
 **Tooling and ops**
 - `cmd/ingest` for bulk-loading a folder of FHIR bundles or HL7v2 messages
@@ -137,7 +139,7 @@ go run ./cmd/server
 | --- | --- |
 | `/` | GraphQL playground (open) |
 | `/query` | GraphQL endpoint (needs the API key) |
-| `/fhir/Patient/...` | FHIR REST read and search |
+| `/fhir/...` | FHIR REST read, search, create, and `$validate` (POST needs the API key) |
 | `/app/` | small patient browser UI |
 | `/demo` | pipeline visualizer |
 | `/healthz`, `/readyz` | liveness and readiness |
@@ -181,9 +183,9 @@ query {
 }
 ```
 
-### FHIR REST (Patient)
+### FHIR REST
 
-So far this only covers `Patient`, and it's read-only. These endpoints aren't
+Reading and searching only cover `Patient` so far, and those endpoints aren't
 gated by the API key.
 
 ```bash
@@ -197,9 +199,29 @@ curl "http://localhost:8080/fhir/Patient?family=Smith&gender=female"
 The search params are `family` and `given`, which match case-insensitively from
 the start of the name, plus `gender` and `birthdate`, which have to match
 exactly. `_count` caps how many results come back (50 by default, 200 at most).
-Asking for a patient that doesn't exist returns a 404. Error responses are
-plain HTTP text for now; turning them into FHIR `OperationOutcome` documents is
-a later change.
+
+Posting needs the API key, same as `/query`. The body can be a Bundle, or one
+`Patient`, `Encounter` or `Observation`.
+
+```bash
+# check a resource without saving it
+curl -X POST http://localhost:8080/fhir/\$validate \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/fhir+json" \
+  -d @testdata/sample_minimal.json
+
+# validate and save it
+curl -X POST http://localhost:8080/fhir \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/fhir+json" \
+  -d @testdata/sample_minimal.json
+```
+
+`$validate` runs the structural checks and the terminology check, and returns an
+`OperationOutcome` listing what is wrong (or one "no issues found" entry). It
+always answers 200 for a body it could read. `POST /fhir` runs the same checks
+and only saves if there are none: 201 when saved, 422 with the issues if not.
+A body that isn't JSON, has no `resourceType`, or is a type we don't handle
+gets a 400. Errors from the read endpoints, like a 404, are `OperationOutcome`
+documents too.
 
 ### Observability
 

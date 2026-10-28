@@ -57,3 +57,21 @@ func TestParseBundle_RejectsNonBundle(t *testing.T) {
 		t.Fatal("expected an error for a non-Bundle resourceType, got nil")
 	}
 }
+
+func TestParseResource(t *testing.T) {
+	single, err := ParseResource([]byte(`{"resourceType":"Patient","id":"p1"}`))
+	if err != nil || len(single.Patients) != 1 {
+		t.Fatalf("single patient: parsed=%+v err=%v", single, err)
+	}
+
+	b, err := ParseResource([]byte(`{"resourceType":"Bundle","entry":[{"resource":{"resourceType":"Observation","id":"o1"}}]}`))
+	if err != nil || len(b.Observations) != 1 {
+		t.Fatalf("bundle: parsed=%+v err=%v", b, err)
+	}
+
+	for _, bad := range []string{`nope`, `{"id":"x"}`, `{"resourceType":"Medication"}`} {
+		if _, err := ParseResource([]byte(bad)); err == nil {
+			t.Errorf("ParseResource(%s) should have failed", bad)
+		}
+	}
+}
