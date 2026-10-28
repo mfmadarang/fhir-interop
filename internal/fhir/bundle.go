@@ -47,29 +47,60 @@ func ParseBundle(data []byte) (*ParsedBundle, error) {
 			return nil, fmt.Errorf("entry %d: probing resourceType: %w", i, err)
 		}
 
-		switch probe.ResourceType {
-		case "Patient":
-			var p Patient
-			if err := json.Unmarshal(entry.Resource, &p); err != nil {
-				return nil, fmt.Errorf("entry %d: parsing Patient: %w", i, err)
-			}
-			parsed.Patients = append(parsed.Patients, p)
-		case "Encounter":
-			var e Encounter
-			if err := json.Unmarshal(entry.Resource, &e); err != nil {
-				return nil, fmt.Errorf("entry %d: parsing Encounter: %w", i, err)
-			}
-			parsed.Encounters = append(parsed.Encounters, e)
-		case "Observation":
-			var o Observation
-			if err := json.Unmarshal(entry.Resource, &o); err != nil {
-				return nil, fmt.Errorf("entry %d: parsing Observation: %w", i, err)
-			}
-			parsed.Observations = append(parsed.Observations, o)
-		default:
-			parsed.Other = append(parsed.Other, probe.ResourceType)
+		if err := parsed.add(probe.ResourceType, entry.Resource); err != nil {
+			return nil, fmt.Errorf("entry %d: %w", i, err)
 		}
 	}
 
 	return parsed, nil
+}
+
+// adds one resource to the right slice, based on its resourceType
+func (pb *ParsedBundle) add(resourceType string, raw []byte) error {
+	switch resourceType {
+	case "Patient":
+		var p Patient
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return fmt.Errorf("parsing Patient: %w", err)
+		}
+		pb.Patients = append(pb.Patients, p)
+	case "Encounter":
+		var e Encounter
+		if err := json.Unmarshal(raw, &e); err != nil {
+			return fmt.Errorf("parsing Encounter: %w", err)
+		}
+		pb.Encounters = append(pb.Encounters, e)
+	case "Observation":
+		var o Observation
+		if err := json.Unmarshal(raw, &o); err != nil {
+			return fmt.Errorf("parsing Observation: %w", err)
+		}
+		pb.Observations = append(pb.Observations, o)
+	default:
+		pb.Other = append(pb.Other, resourceType)
+	}
+	return nil
+}
+
+// like ParseBundle, but also accepts a single Patient, Encounter or Observation
+func ParseResource(data []byte) (*ParsedBundle, error) {
+	var probe resourceTypeProbe
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return nil, fmt.Errorf("reading resourceType: %w", err)
+	}
+
+	switch probe.ResourceType {
+	case "Bundle":
+		return ParseBundle(data)
+	case "Patient", "Encounter", "Observation":
+		parsed := &ParsedBundle{}
+		if err := parsed.add(probe.ResourceType, data); err != nil {
+			return nil, err
+		}
+		return parsed, nil
+	case "":
+		return nil, fmt.Errorf("missing resourceType")
+	default:
+		return nil, fmt.Errorf("resourceType %q is not supported, send a Bundle, Patient, Encounter or Observation", probe.ResourceType)
+	}
 }
